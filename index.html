@@ -54,8 +54,8 @@
             margin-top: 10px;
         }
     </style>
-    <!-- 引入html5-qrcode库（CDN方式，无需本地安装） -->
-    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
+    <!-- 更换为更稳定的jsDelivr CDN，且指定明确版本 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
     <h1>浏览器扫码功能</h1>
@@ -77,8 +77,28 @@
         let html5Qrcode = null; // 扫码实例
         let isScanning = false; // 扫码状态标记
 
+        // 先检测库是否加载成功
+        window.addEventListener('load', () => {
+            // 等待所有资源（包括CDN）加载完成
+            if (typeof Html5Qrcode === 'undefined') {
+                resultEl.textContent = '扫码库加载失败，请检查网络或刷新页面';
+                scanBtn.disabled = true;
+                console.error('Html5Qrcode库未加载成功');
+                return;
+            }
+            resultEl.textContent = '扫码库加载完成，点击按钮开始扫码';
+        });
+
         // 初始化扫码函数
         async function startScanning() {
+            // 二次检测库是否存在
+            if (typeof Html5Qrcode === 'undefined') {
+                resultEl.textContent = '扫码库未加载，请刷新页面重试';
+                scanBtn.disabled = false;
+                scanBtn.textContent = '开始扫码';
+                return;
+            }
+
             // 禁用按钮，防止重复点击
             scanBtn.disabled = true;
             scanBtn.textContent = '扫码中...';
@@ -161,4 +181,3 @@
     </script>
 </body>
 </html>
-
