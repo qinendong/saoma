@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>浏览器扫码功能</title>
+    <title>浏览器扫码功能（html5-qrcode）</title>
     <style>
         * {
             margin: 0;
@@ -33,12 +33,12 @@
             background: #6c757d;
             cursor: not-allowed;
         }
-        #video {
+        #reader {
             width: 100%;
-            height: auto;
+            height: 400px;
             border: 1px solid #ddd;
             border-radius: 8px;
-            display: none;
+            display: none; /* 默认隐藏扫码容器 */
         }
         #result {
             margin-top: 20px;
@@ -54,12 +54,15 @@
             margin-top: 10px;
         }
     </style>
+    <!-- 引入html5-qrcode库（CDN方式，无需本地安装） -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/dist/html5-qrcode.min.js"></script>
 </head>
 <body>
     <h1>浏览器扫码功能</h1>
     <div class="scan-container">
         <button id="scanBtn">开始扫码</button>
-        <video id="video" autoplay playsinline></video>
+        <!-- 扫码容器（由html5-qrcode自动渲染摄像头画面） -->
+        <div id="reader"></div>
         <div id="result">扫码结果将显示在这里</div>
         <p class="tip">提示：使用前请允许摄像头权限，将二维码对准摄像头即可识别</p>
     </div>
@@ -67,131 +70,94 @@
     <script>
         // 获取页面元素
         const scanBtn = document.getElementById('scanBtn');
-        const video = document.getElementById('video');
-        const result = document.getElementById('result');
+        const readerContainer = document.getElementById('reader');
+        const resultEl = document.getElementById('result');
         
-        // 声明变量
-        let stream = null;
-        let barcodeDetector = null;
-        let detectInterval = null;
+        // 声明核心变量
+        let html5Qrcode = null; // 扫码实例
+        let isScanning = false; // 扫码状态标记
 
-        // 初始化扫码检测器（兼容不同浏览器）
-        function initBarcodeDetector() {
-            try {
-                // 现代浏览器原生支持
-                barcodeDetector = new BarcodeDetector({
-                    formats: ['qr_code', 'code_128', 'ean_13'] // 支持的码制
-                });
-                return true;
-            } catch (e) {
-                result.textContent = '当前浏览器不支持原生扫码功能';
-                console.error('BarcodeDetector初始化失败:', e);
-                return false;
-            }
-        }
-
-        // 开始扫码
-        async function startScan() {
-            // 禁用按钮防止重复点击
+        // 初始化扫码函数
+        async function startScanning() {
+            // 禁用按钮，防止重复点击
             scanBtn.disabled = true;
             scanBtn.textContent = '扫码中...';
-            result.textContent = '请将二维码对准摄像头';
+            resultEl.textContent = '请将二维码对准摄像头';
+            readerContainer.style.display = 'block';
 
             try {
-                // 获取摄像头流（优先后置摄像头）
-                stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: 'environment', // 后置摄像头
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
+                // 创建扫码实例
+                html5Qrcode = new Html5Qrcode("reader");
+                
+                // 配置扫码参数（优先后置摄像头，提高识别率）
+                const config = {
+                    fps: 10, // 每秒扫描帧数
+                    qrbox: { width: 250, height: 250 }, // 扫码识别区域
+                    facingMode: "environment" // 后置摄像头（移动端）
+                };
+
+                // 启动扫码
+                await html5Qrcode.start(
+                    { facingMode: "environment" }, // 摄像头配置
+                    config,
+                    // 扫码成功回调
+                    (decodedText, decodedResult) => {
+                        stopScanning(); // 识别成功后停止扫码
+                        resultEl.textContent = `识别成功：${decodedText}`;
+                        console.log("扫码结果：", decodedResult);
+                    },
+                    // 扫码失败回调（仅打印错误，不提示用户）
+                    (errorMessage) => {
+                        if (!errorMessage.includes("No QR code found")) {
+                            console.log("扫码检测中：", errorMessage);
+                        }
                     }
+                );
+
+                isScanning = true;
+
+            } catch (error) {
+                // 处理异常（权限拒绝、浏览器不兼容等）
+                stopScanning();
+                resultEl.textContent = `扫码启动失败：${error.message}`;
+                console.error("启动扫码失败：", error);
+            }
+        }
+
+        // 停止扫码函数
+        function stopScanning() {
+            // 如果正在扫码，停止并清理资源
+            if (isScanning && html5Qrcode) {
+                html5Qrcode.stop().then(() => {
+                    html5Qrcode = null;
+                    isScanning = false;
+                }).catch(err => {
+                    console.error("停止扫码失败：", err);
                 });
-
-                // 将摄像头流绑定到video元素
-                video.srcObject = stream;
-                video.style.display = 'block';
-
-                // 等待视频加载完成
-                await video.play();
-
-                // 开始循环检测二维码
-                startDetection();
-
-            } catch (err) {
-                result.textContent = `获取摄像头失败：${err.message}`;
-                scanBtn.disabled = false;
-                scanBtn.textContent = '开始扫码';
-                console.error('获取摄像头失败:', err);
-            }
-        }
-
-        // 循环检测二维码
-        function startDetection() {
-            // 每100ms检测一次
-            detectInterval = setInterval(async () => {
-                try {
-                    const barcodes = await barcodeDetector.detect(video);
-                    
-                    if (barcodes.length > 0) {
-                        // 识别到二维码，停止检测
-                        stopScan();
-                        // 显示识别结果
-                        const barcode = barcodes[0];
-                        result.textContent = `识别成功：${barcode.rawValue}`;
-                        // 可以在这里添加识别后的逻辑（如跳转链接、复制结果等）
-                        console.log('扫码结果:', barcode);
-                    }
-                } catch (err) {
-                    console.error('检测二维码失败:', err);
-                }
-            }, 100);
-        }
-
-        // 停止扫码
-        function stopScan() {
-            // 清除检测定时器
-            if (detectInterval) {
-                clearInterval(detectInterval);
-                detectInterval = null;
             }
 
-            // 停止摄像头流
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-
-            // 隐藏视频元素
-            video.style.display = 'none';
-            video.srcObject = null;
-
-            // 恢复按钮状态
+            // 恢复页面状态
+            readerContainer.style.display = 'none';
             scanBtn.disabled = false;
             scanBtn.textContent = '开始扫码';
         }
 
         // 页面加载完成后初始化
         window.addEventListener('DOMContentLoaded', () => {
-            // 检查浏览器是否支持必要API
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                result.textContent = '当前浏览器不支持摄像头访问';
-                scanBtn.disabled = true;
-                return;
-            }
+            // 绑定扫码按钮点击事件
+            scanBtn.addEventListener('click', () => {
+                if (!isScanning) {
+                    startScanning();
+                } else {
+                    stopScanning();
+                }
+            });
 
-            // 初始化扫码检测器
-            const detectorReady = initBarcodeDetector();
-            if (!detectorReady) {
-                scanBtn.disabled = true;
-                return;
-            }
-
-            // 绑定按钮点击事件
-            scanBtn.addEventListener('click', startScan);
+            // 页面关闭/刷新时，清理扫码资源
+            window.addEventListener('beforeunload', () => {
+                stopScanning();
+            });
         });
-
-        // 页面关闭时停止扫码
-        window.addEventListener('beforeunload', stopScan);
     </script>
 </body>
 </html>
