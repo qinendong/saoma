@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>浏览器扫码功能（html5-qrcode）</title>
+    <title>二维码+条形码扫码功能</title>
     <style>
         * {
             margin: 0;
@@ -38,7 +38,7 @@
             height: 400px;
             border: 1px solid #ddd;
             border-radius: 8px;
-            display: none; /* 默认隐藏扫码容器 */
+            display: none;
         }
         #result {
             margin-top: 20px;
@@ -54,44 +54,38 @@
             margin-top: 10px;
         }
     </style>
-    <!-- 更换为更稳定的jsDelivr CDN，且指定明确版本 -->
+    <!-- 稳定的jsDelivr CDN -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
-    <h1>浏览器扫码功能</h1>
+    <h1>二维码+条形码扫码功能</h1>
     <div class="scan-container">
         <button id="scanBtn">开始扫码</button>
-        <!-- 扫码容器（由html5-qrcode自动渲染摄像头画面） -->
         <div id="reader"></div>
         <div id="result">扫码结果将显示在这里</div>
-        <p class="tip">提示：使用前请允许摄像头权限，将二维码对准摄像头即可识别</p>
+        <p class="tip">提示：支持二维码、CODE_128、EAN_13等条码，允许摄像头权限后对准条码即可</p>
     </div>
 
     <script>
-        // 获取页面元素
         const scanBtn = document.getElementById('scanBtn');
         const readerContainer = document.getElementById('reader');
         const resultEl = document.getElementById('result');
         
-        // 声明核心变量
-        let html5Qrcode = null; // 扫码实例
-        let isScanning = false; // 扫码状态标记
+        let html5Qrcode = null;
+        let isScanning = false;
 
-        // 先检测库是否加载成功
+        // 检测库加载
         window.addEventListener('load', () => {
-            // 等待所有资源（包括CDN）加载完成
             if (typeof Html5Qrcode === 'undefined') {
-                resultEl.textContent = '扫码库加载失败，请检查网络或刷新页面';
+                resultEl.textContent = '扫码库加载失败，请刷新页面';
                 scanBtn.disabled = true;
-                console.error('Html5Qrcode库未加载成功');
                 return;
             }
-            resultEl.textContent = '扫码库加载完成，点击按钮开始扫码';
+            resultEl.textContent = '扫码库加载完成，支持二维码+条形码识别';
         });
 
-        // 初始化扫码函数
+        // 启动扫码（支持条形码）
         async function startScanning() {
-            // 二次检测库是否存在
             if (typeof Html5Qrcode === 'undefined') {
                 resultEl.textContent = '扫码库未加载，请刷新页面重试';
                 scanBtn.disabled = false;
@@ -99,34 +93,41 @@
                 return;
             }
 
-            // 禁用按钮，防止重复点击
             scanBtn.disabled = true;
             scanBtn.textContent = '扫码中...';
-            resultEl.textContent = '请将二维码对准摄像头';
+            resultEl.textContent = '请将二维码/条形码对准摄像头';
             readerContainer.style.display = 'block';
 
             try {
-                // 创建扫码实例
                 html5Qrcode = new Html5Qrcode("reader");
                 
-                // 配置扫码参数（优先后置摄像头，提高识别率）
+                // 核心修改：指定识别格式（二维码+常用条形码）
+                const allowedFormats = [
+                    Html5QrcodeSupportedFormats.QR_CODE,    // 二维码
+                    Html5QrcodeSupportedFormats.CODE_128,   // CODE_128条形码
+                    Html5QrcodeSupportedFormats.EAN_13,     // EAN_13商品条码
+                    Html5QrcodeSupportedFormats.EAN_8,      // EAN_8
+                    Html5QrcodeSupportedFormats.UPC_A,      // UPC_A
+                    Html5QrcodeSupportedFormats.CODE_39     // CODE_39
+                ];
+
                 const config = {
-                    fps: 10, // 每秒扫描帧数
-                    qrbox: { width: 250, height: 250 }, // 扫码识别区域
-                    facingMode: "environment" // 后置摄像头（移动端）
+                    fps: 10,
+                    qrbox: { width: 250, height: 250 },
+                    facingMode: "environment",
+                    formatsToSupport: allowedFormats // 启用指定的条码格式
                 };
 
-                // 启动扫码
+                // 启动扫码（添加格式配置）
                 await html5Qrcode.start(
-                    { facingMode: "environment" }, // 摄像头配置
+                    { facingMode: "environment" },
                     config,
-                    // 扫码成功回调
                     (decodedText, decodedResult) => {
-                        stopScanning(); // 识别成功后停止扫码
-                        resultEl.textContent = `识别成功：${decodedText}`;
-                        console.log("扫码结果：", decodedResult);
+                        stopScanning();
+                        // 显示识别结果+条码类型
+                        resultEl.textContent = `识别成功（${decodedResult.format}）：${decodedText}`;
+                        console.log("条码类型：", decodedResult.format, "内容：", decodedText);
                     },
-                    // 扫码失败回调（仅打印错误，不提示用户）
                     (errorMessage) => {
                         if (!errorMessage.includes("No QR code found")) {
                             console.log("扫码检测中：", errorMessage);
@@ -137,16 +138,14 @@
                 isScanning = true;
 
             } catch (error) {
-                // 处理异常（权限拒绝、浏览器不兼容等）
                 stopScanning();
                 resultEl.textContent = `扫码启动失败：${error.message}`;
                 console.error("启动扫码失败：", error);
             }
         }
 
-        // 停止扫码函数
+        // 停止扫码
         function stopScanning() {
-            // 如果正在扫码，停止并清理资源
             if (isScanning && html5Qrcode) {
                 html5Qrcode.stop().then(() => {
                     html5Qrcode = null;
@@ -156,15 +155,13 @@
                 });
             }
 
-            // 恢复页面状态
             readerContainer.style.display = 'none';
             scanBtn.disabled = false;
             scanBtn.textContent = '开始扫码';
         }
 
-        // 页面加载完成后初始化
+        // 绑定事件
         window.addEventListener('DOMContentLoaded', () => {
-            // 绑定扫码按钮点击事件
             scanBtn.addEventListener('click', () => {
                 if (!isScanning) {
                     startScanning();
@@ -173,10 +170,7 @@
                 }
             });
 
-            // 页面关闭/刷新时，清理扫码资源
-            window.addEventListener('beforeunload', () => {
-                stopScanning();
-            });
+            window.addEventListener('beforeunload', stopScanning);
         });
     </script>
 </body>
