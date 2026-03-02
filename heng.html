@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <!-- 核心meta标签，设置视口适配移动端 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>移动端自动横屏展示</title>
+    <style>
+        /* 重置默认样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            background-color: #f5f5f5;
+        }
+
+        /* 横屏容器 - 核心样式 */
+        .landscape-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vh;  /* 横屏时宽度等于原高度 */
+            height: 100vw; /* 横屏时高度等于原宽度 */
+            transform-origin: top left;
+            transform: rotate(90deg) translate(0, -100%);
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        /* 竖屏提示样式 */
+        .portrait-tip {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            font-size: 18px;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .portrait-tip i {
+            font-size: 60px;
+            margin-bottom: 20px;
+            animation: rotateTip 2s infinite ease-in-out;
+        }
+
+        @keyframes rotateTip {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(90deg); }
+        }
+
+        /* 页面内容样式 */
+        .content {
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        p {
+            color: #666;
+            line-height: 1.6;
+        }
+
+        /* 隐藏竖屏提示（横屏时） */
+        .landscape-mode .portrait-tip {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- 竖屏提示 -->
+    <div class="portrait-tip">
+        <i>📱</i>
+        <h2>请将设备横屏使用</h2>
+        <p>为获得最佳体验，请旋转您的手机或平板至横向模式</p>
+    </div>
+
+    <!-- 横屏内容容器 -->
+    <div class="landscape-container">
+        <div class="content">
+            <h1>移动端横屏展示页面</h1>
+            <p>这个页面在移动端会自动以横屏模式展示</p>
+            <p>屏幕宽度: <span id="screen-width">0</span>px</p>
+            <p>屏幕高度: <span id="screen-height">0</span>px</p>
+            <p>当前方向: <span id="screen-orientation">未知</span></p>
+        </div>
+    </div>
+
+    <script>
+        // 获取DOM元素
+        const body = document.body;
+        const widthSpan = document.getElementById('screen-width');
+        const heightSpan = document.getElementById('screen-height');
+        const orientationSpan = document.getElementById('screen-orientation');
+
+        // 更新屏幕信息
+        function updateScreenInfo() {
+            // 获取屏幕尺寸
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+            
+            // 更新显示信息
+            widthSpan.textContent = width;
+            heightSpan.textContent = height;
+            
+            // 判断屏幕方向
+            let orientation = '';
+            if (window.screen.orientation) {
+                orientation = window.screen.orientation.type;
+            } else if (width > height) {
+                orientation = 'landscape-primary (横屏)';
+                body.classList.add('landscape-mode');
+            } else {
+                orientation = 'portrait-primary (竖屏)';
+                body.classList.remove('landscape-mode');
+            }
+            
+            orientationSpan.textContent = orientation;
+        }
+
+        // 监听屏幕方向变化
+        function handleOrientationChange() {
+            updateScreenInfo();
+            // 强制页面重绘
+            document.body.style.display = 'none';
+            document.body.offsetHeight; // 触发重绘
+            document.body.style.display = '';
+        }
+
+        // 监听窗口大小变化
+        window.addEventListener('resize', handleOrientationChange);
+        
+        // 监听屏幕方向变化（标准API）
+        if (window.screen.orientation) {
+            window.screen.orientation.addEventListener('change', handleOrientationChange);
+        }
+
+        // 初始加载时更新信息
+        window.addEventListener('DOMContentLoaded', function() {
+            updateScreenInfo();
+            
+            // 自动聚焦（部分浏览器支持）
+            try {
+                // 尝试请求全屏（可选）
+                if (document.documentElement.requestFullscreen) {
+                    // 如需自动全屏，可取消注释下面的代码
+                    // document.documentElement.requestFullscreen();
+                }
+            } catch (e) {
+                console.log('无法自动进入全屏模式:', e);
+            }
+        });
+
+        // 禁止用户缩放
+        document.addEventListener('touchmove', function(event) {
+            if (event.scale !== 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
