@@ -2,7 +2,6 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <!-- 核心meta标签，设置视口适配移动端 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>移动端自动横屏展示</title>
     <style>
@@ -26,8 +25,8 @@
             position: fixed;
             top: 0;
             left: 0;
-            width: 100vh;  /* 横屏时宽度等于原高度 */
-            height: 100vw; /* 横屏时高度等于原宽度 */
+            width: 100vh;
+            height: 100vw;
             transform-origin: top left;
             transform: rotate(90deg) translate(0, -100%);
             background-color: white;
@@ -126,15 +125,24 @@
             widthSpan.textContent = width;
             heightSpan.textContent = height;
             
-            // 判断屏幕方向
+            // 判断屏幕方向 - 修复核心逻辑
+            let isLandscape = false; // 标记是否为横屏
             let orientation = '';
+            
             if (window.screen.orientation) {
                 orientation = window.screen.orientation.type;
-            } else if (width > height) {
-                orientation = 'landscape-primary (横屏)';
+                // 检测所有横屏类型（primary/secondary）
+                isLandscape = orientation.includes('landscape');
+            } else {
+                // 兼容旧浏览器：宽大于高即为横屏
+                isLandscape = width > height;
+                orientation = isLandscape ? 'landscape-primary (横屏)' : 'portrait-primary (竖屏)';
+            }
+            
+            // 关键：统一控制landscape-mode类的添加/移除
+            if (isLandscape) {
                 body.classList.add('landscape-mode');
             } else {
-                orientation = 'portrait-primary (竖屏)';
                 body.classList.remove('landscape-mode');
             }
             
@@ -144,13 +152,13 @@
         // 监听屏幕方向变化
         function handleOrientationChange() {
             updateScreenInfo();
-            // 强制页面重绘
-            document.body.style.display = 'none';
-            document.body.offsetHeight; // 触发重绘
-            document.body.style.display = '';
+            // 强制页面重绘（解决部分设备切换后样式不更新问题）
+            body.style.display = 'none';
+            body.offsetHeight; // 触发重绘
+            body.style.display = '';
         }
 
-        // 监听窗口大小变化
+        // 监听窗口大小变化（旋转屏幕会触发）
         window.addEventListener('resize', handleOrientationChange);
         
         // 监听屏幕方向变化（标准API）
@@ -162,11 +170,10 @@
         window.addEventListener('DOMContentLoaded', function() {
             updateScreenInfo();
             
-            // 自动聚焦（部分浏览器支持）
+            // 可选：自动请求全屏（部分浏览器需用户交互才能触发）
             try {
-                // 尝试请求全屏（可选）
                 if (document.documentElement.requestFullscreen) {
-                    // 如需自动全屏，可取消注释下面的代码
+                    // 如需自动全屏，取消注释（注意：需用户点击后才能生效）
                     // document.documentElement.requestFullscreen();
                 }
             } catch (e) {
